@@ -53,7 +53,7 @@ class Server:
     def change_state(self, new_state):
         self.state = new_state
 
-    def receive(self, rpc):
+    def _receive(self, rpc):
         """
             • If RPC request or response contains term T > currentTerm:
                 set currentTerm = T, convert to follower (§5.1)
@@ -64,6 +64,9 @@ class Server:
         response = rpc(self)
         if response is not None:
             self.network.send(response, rpc.sender)
+
+    def receive(self, rpc):
+        self.scheduler.enter(0, PRIORITY, self._receive, (rpc,))
 
     def after(self, delay, action, **kwargs):
         self.scheduler.enter(delay, PRIORITY, action, (self,), kwargs)
