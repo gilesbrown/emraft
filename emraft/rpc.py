@@ -5,6 +5,7 @@ LogIndex = int
 NetworkId = str
 VoteGranted = bool
 
+
 class RPC:
 
     def __init__(self, term, sender):
@@ -21,13 +22,13 @@ class RequestVoteResponse(RPC):
         super(RequestVoteResponse, self).__init__(term, sender)
         self.vote_granted = VoteGranted(vote_granted)
 
-    def __call__(self, state):
+    def __call__(self, server):
         if self.vote_granted:
-            method = getattr(state, 'vote_granted', None)
+            method = getattr(server.state, 'vote_granted', None)
             if method:
-                method(self.sender)
+                method(server, self.sender)
             else:
-                print("NO METHOD for vote_granted on {}".format(state))
+                print("NO METHOD for vote_granted on {}".format(server.state))
         else:
             print("VOTE NOT GRANTED")
 
@@ -45,5 +46,26 @@ class RequestVote(RPC):
         vote_granted = method(self.candidate_id,
                               self.last_log_index,
                               self.last_log_term)
-        return RequestVoteResponse(self.server.persistent_state.current_term,
-                                   vote_granted)
+        return RequestVoteResponse(self.server.current_term, vote_granted)
+
+
+class AppendEntries(RPC):
+
+    def __init__(self,
+                 term,
+                 leader_id,
+                 prev_log_index,
+                 prev_log_term,
+                 entries,
+                 leader_commit):
+        super(AppendEntries, self).__init__(term, leader_id)
+        self.leader_id = self.sender  # alias
+        self.prev_log_index = LogIndex(prev_log_index)
+        self.prev_log_term = Term(prev_log_term)
+        self.entries = entries
+        self.leader_commit = leader_commit
+
+    def __call__(self, state):
+        method = getattr(state, 'request_vote', None)
+        if method:
+            print("TODO:", __file__)
