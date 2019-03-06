@@ -5,6 +5,7 @@ Term = int
 LogIndex = int
 NetworkId = str
 VoteGranted = bool
+Success = bool
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class RPC:
     def __call__(self, server):
         raise NotImplementedError()
 
-    def state_method(self, state, name):
+    def method(self, state, name):
         return getattr(state, name, MissingMethod(name))
 
 
@@ -38,7 +39,7 @@ class RequestVoteResponse(RPC):
         self.vote_granted = VoteGranted(vote_granted)
 
     def __call__(self, server):
-        vote = self.state_method(server.state, 'vote')
+        vote = self.method(server.state, 'vote')
         vote(server, vote_granted=self.vote_granted, voter=self.sender)
 
 
@@ -50,12 +51,23 @@ class RequestVote(RPC):
         self.last_log_index = LogIndex(last_log_index)
         self.last_log_term = Term(last_log_term)
 
-    def __call__(self, state):
-        method = getattr(state, 'request_vote')
+    def __call__(self, server):
+        method = self.method(server.state, 'request_vote')
         vote_granted = method(self.candidate_id,
                               self.last_log_index,
                               self.last_log_term)
         return RequestVoteResponse(self.server.current_term, vote_granted)
+
+
+class AppendEntriesResponse(RPC):
+
+    def __init__(self, term, sender, success):
+        super(AppendEntriesResponse, self).__init__(term, sender)
+        self.success = Success(success)
+
+    def __call__(self, server):
+        entries_appended = self.method(server.state, 'entries_appended')
+        entries_appended(server, success=self.success)
 
 
 class AppendEntries(RPC):
@@ -74,7 +86,15 @@ class AppendEntries(RPC):
         self.entries = entries
         self.leader_commit = leader_commit
 
-    def __call__(self, state):
-        method = getattr(state, 'request_vote', None)
-        if method:
-            print("TODO:", __file__)
+    def __call__(self, server):
+        append_entries = self.method(server.state, 'append_entries')
+        success = append_entries(server,
+                                 term=self.term,
+                                 leader_id=self.leader_id,
+                                 prev_log_index=self.prev_log_index,
+                                 prev_log_term=self.prev_log_term,
+                                 entries=self.entries,
+                                 leader_commit=self.leader_commit)
+        return AppendEntriesResponse(term=server.current_term,
+                                     sender=server.network.id,
+                                     success=success)

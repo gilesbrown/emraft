@@ -67,7 +67,7 @@ class Server:
         """
         if rpc.term > self.current_term:
             self.current_term = rpc.term
-            self.become_follower()
+            self.change_state(self.Follower(self))
         response = rpc(self)
         if response is not None:
             self.network.send(response, rpc.sender)

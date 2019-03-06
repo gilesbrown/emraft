@@ -9,9 +9,9 @@ class StartsElection:
     timer = None
 
     def __init__(self, server):
-        self.start_timer(server)
+        self.start_election_timer(server)
 
-    def start_timer(self, server):
+    def start_election_timer(self, server):
         if self.timer is not None:
             server.scheduler.cancel(self.timer)
         self.timer = server.after_election_timeout(self.start_election)
