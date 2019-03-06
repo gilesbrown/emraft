@@ -1,10 +1,9 @@
 import logging
 import sched
-from .states import follower, leader, candidate
+from . import follower, leader, candidate
 
 
 PRIORITY = 0
-
 
 
 class Server:
@@ -37,6 +36,14 @@ class Server:
         # volatile state on all servers
         self.commit_index = 0
         self.last_applied = 0
+
+    def __str__(self):
+        fields = dict(
+            state=self.state.__class__.__name__[0],
+            term=self.current_term,
+            id=self.network.id,
+        )
+        return '{state}[{term}]@{id}'.format(**fields)
 
     @property
     def current_term(self):

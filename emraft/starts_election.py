@@ -1,4 +1,4 @@
-class StartElection:
+class StartsElection:
     """ Base class for Follower and Candidate states.
 
     Both Follower and Candidate states transition to

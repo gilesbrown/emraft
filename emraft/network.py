@@ -17,16 +17,17 @@ class Network(object):
         self.server = server
 
     def majority(self, votes):
-        return (len(votes) / len(self)) >= self.majority_threshold
+        return (len(votes) / len(self)) > self.majority_threshold
 
     def __len__(self):
         return 1
 
     def election_timeout(self):
-        return 0.15  # 150ms
-        # return 2.0  # 150ms
+        """ Return election timeout in seconds """
+        return 0.15
 
     def heartbeat_interval(self):
+        """ Return heartbeat interval (timeout) in seconds """
         return self.election_timeout() / 3.0
 
     def send(self, rpc, dst=ALL):

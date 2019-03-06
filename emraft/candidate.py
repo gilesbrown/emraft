@@ -1,5 +1,5 @@
-from .start_election import StartElection
-from ..rpc import RequestVote, RequestVoteResponse
+from .starts_election import StartsElection
+from .rpc import RequestVote, RequestVoteResponse
 
 
 def request_vote(server):
@@ -21,7 +21,7 @@ def own_vote(server):
     return grant_vote
 
 
-class Candidate(StartElection):
+class Candidate(StartsElection):
     """
     Candidates (§5.2):
       • On conversion to candidate, start election:
@@ -42,10 +42,12 @@ class Candidate(StartElection):
         server.network.send(request_vote(server))
         server.receive(own_vote(server))
 
-    def vote_granted(self, server, vote_from):
-        self.votes.add(vote_from)
-        if server.network.majority(self.votes):
-            server.change_state(server.Leader(server))
+    def vote(self, server, vote_granted, voter):
+        """ Recieved response to RequestVote from `voter` """
+        if vote_granted:
+            self.votes.add(voter)
+            if server.network.majority(self.votes):
+                server.change_state(server.Leader(server))
 
     def append_entries(self, server, *args, **kwargs):
         print("TODO:", __file__)

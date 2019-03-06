@@ -1,4 +1,4 @@
-from ..rpc import AppendEntries
+from .rpc import AppendEntries
 
 
 class Leader:

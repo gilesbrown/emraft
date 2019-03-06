@@ -1,8 +1,8 @@
-from .start_election import StartElection
-from ..rpc import RequestVoteResponse
+from .starts_election import StartsElection
+from .rpc import RequestVoteResponse
 
 
-class Follower(StartElection):
+class Follower(StartsElection):
     """
         Followers (§5.2):
           • Respond to RPCs from candidates and leaders

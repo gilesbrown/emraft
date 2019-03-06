@@ -1,9 +1,21 @@
+import logging
 
 
 Term = int
 LogIndex = int
 NetworkId = str
 VoteGranted = bool
+
+logger = logging.getLogger(__name__)
+
+
+class MissingMethod:
+
+    def __init__(self, name):
+        self.name = name
+
+    def __call__(self, server, **kwargs):
+        logger.warning("no method '%s' on %s", self.name, server)
 
 
 class RPC:
@@ -12,8 +24,11 @@ class RPC:
         self.term = Term(term)
         self.sender = NetworkId(sender)
 
-    def __call__(self, state):
+    def __call__(self, server):
         raise NotImplementedError()
+
+    def state_method(self, state, name):
+        return getattr(state, name, MissingMethod(name))
 
 
 class RequestVoteResponse(RPC):
@@ -23,14 +38,8 @@ class RequestVoteResponse(RPC):
         self.vote_granted = VoteGranted(vote_granted)
 
     def __call__(self, server):
-        if self.vote_granted:
-            method = getattr(server.state, 'vote_granted', None)
-            if method:
-                method(server, self.sender)
-            else:
-                print("NO METHOD for vote_granted on {}".format(server.state))
-        else:
-            print("VOTE NOT GRANTED")
+        vote = self.state_method(server.state, 'vote')
+        vote(server, vote_granted=self.vote_granted, voter=self.sender)
 
 
 class RequestVote(RPC):
