@@ -1,25 +1,25 @@
 import time
+import sched
 
 
 class Network(object):
 
     ALL = object()
 
-    timefunc = time.time
-    delayfunc = time.sleep
-
     def __init__(self, **kw):
         self.id = id(self)
-        self.server = None
+        self.receive = None
         self.majority_threshold = kw.pop('majority_threshold', 0.5)
 
-    def bind(self, server):
-        self.server = server
+    def scheduler(self):
+        """ Return a scheduler """
+        return sched.scheduler(time.time, time.sleep)
 
     def majority(self, votes):
         return (len(votes) / len(self)) > self.majority_threshold
 
     def __len__(self):
+        """ Size of the network (cluster) """
         return 1
 
     def election_timeout(self):

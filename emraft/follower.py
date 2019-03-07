@@ -28,8 +28,8 @@ class Follower(StartsElection):
             vote_granted = False
         return RequestVoteResponse(vote_granted=vote_granted)
 
-    def vote(self, *args, **kwargs):
-        print("folloWER? VOTE?", args, kwargs)
+    # def vote(self, *args, **kwargs):
+    #     print("folloWER? VOTE?", args, kwargs)
 
     def append_entries(self,
                        server,

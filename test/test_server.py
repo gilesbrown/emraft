@@ -52,6 +52,7 @@ class SimulatedNetwork(Network):
     def __init__(self, servers):
         super(SimulatedNetwork, self).__init__()
         self.servers = servers
+        self.server = None
         # *this* server is the last in the list
         self.id = self.servers[-1]
         self.sends = []
@@ -89,7 +90,7 @@ class GrantVotesNetwork(SimulatedNetwork):
 class DontGrantVotesNetwork(SimulatedNetwork):
     """ Simulate votes not being granted """
 
-    def receive_append_entries(self):
+    def on_request_vote(self):
         pass
 
     def send(self, rpc, dst=Network.ALL):
@@ -97,7 +98,7 @@ class DontGrantVotesNetwork(SimulatedNetwork):
         if isinstance(rpc, RequestVote):
             for server in self.servers[:-1]:
                 self.request_vote(rpc, server, False)
-            self.receive_append_entries()
+            self.on_request_vote()
         elif isinstance(rpc, AppendEntriesResponse):
             # we will send one of these wne we receive an AppendEntries
             pass
@@ -107,7 +108,7 @@ class DontGrantVotesNetwork(SimulatedNetwork):
 
 class ReceiveAppendEntriesNetwork(DontGrantVotesNetwork):
 
-    def receive_append_entries(self):
+    def on_request_vote(self):
         append_entries = AppendEntries(term=self.server.current_term + 1,
                                        leader_id=self.servers[-2],
                                        prev_log_index=0,
@@ -120,14 +121,14 @@ class ReceiveAppendEntriesNetwork(DontGrantVotesNetwork):
 
 def run_server(network, timeout=10.0):
     persistent_state = MemPersistentState()
-    server = Server(persistent_state, network)
+    network.server = Server(persistent_state, network)
     # add an overall timeout for the run
-    server.after(timeout, stop_server)
+    network.server.after(timeout, stop_server)
     try:
-        server.scheduler.run()
+        network.server.scheduler.run()
     except StopServer:
         pass
-    return server
+    return network.server
 
 
 def test_server_becomes_singleton_leader():

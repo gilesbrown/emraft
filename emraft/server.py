@@ -1,5 +1,4 @@
 import logging
-import sched
 from . import follower, leader, candidate
 
 
@@ -22,9 +21,8 @@ class Server:
     def __init__(self, persistent_state, network):
         self.logger = logging.getLogger(__name__)
         self.network = network
-        self.network.bind(self)
-        self.scheduler = sched.scheduler(self.network.timefunc,
-                                         self.network.delayfunc)
+        self.network.receive = self.receive
+        self.scheduler = network.scheduler()
         self.state = self.Follower(self)
 
         # persistent state on all servers
@@ -60,7 +58,7 @@ class Server:
     def change_state(self, new_state):
         self.state = new_state
 
-    def _receive(self, rpc):
+    def receive_action(self, rpc):
         """
             • If RPC request or response contains term T > currentTerm:
                 set currentTerm = T, convert to follower (§5.1)
@@ -72,11 +70,11 @@ class Server:
         if response is not None:
             self.network.send(response, rpc.sender)
 
+    #
+    # Scheduler helpers
+
     def receive(self, rpc):
-        self.scheduler.enter(0, PRIORITY, self._receive, (rpc,))
+        self.scheduler.enter(0, PRIORITY, self.receive_action, (rpc,))
 
     def after(self, delay, action, **kwargs):
         self.scheduler.enter(delay, PRIORITY, action, (self,), kwargs)
-
-    def after_election_timeout(self, action):
-        self.after(self.network.election_timeout(), action)
