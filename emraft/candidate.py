@@ -2,16 +2,14 @@ from .starts_election import StartsElection
 from .rpc import RequestVote, RequestVoteResponse
 
 
-def request_vote(server):
-    last_log_index, last_log_term = server.log.last()
+def request_vote_rpc(server):
     request_vote = RequestVote(term=server.current_term,
                                candidate_id=server.network.id,
-                               last_log_index=last_log_index,
-                               last_log_term=last_log_term)
+                               last_log=server.log.last())
     return request_vote
 
 
-def own_vote(server):
+def self_vote_rpc(server):
     server.voted_for = server.network.id
     grant_vote = RequestVoteResponse(
         term=server.current_term,
@@ -39,8 +37,9 @@ class Candidate(StartsElection):
         self.votes = set()
         server.current_term += 1
         server.voted_for = server.network.id
-        server.network.send(request_vote(server))
-        server.receive(own_vote(server))
+        # TODO: beautify this
+        server.receive(self_vote_rpc(server))
+        server.network.send(request_vote_rpc(server))
 
     def vote(self, server, vote_granted, voter):
         """ Recieved response to RequestVote from `voter` """
@@ -50,4 +49,10 @@ class Candidate(StartsElection):
                 server.change_state(server.Leader(server))
 
     def append_entries(self, server, *args, **kwargs):
-        print("TODO:", __file__)
+        """ Called when an AppendEntries RPC is received.
+
+            • If AppendEntries RPC received from new leader: convert to
+            follower
+        """
+        server.change_state(server.Follower(server))
+        return server.state.append_entries(server, *args, **kwargs)

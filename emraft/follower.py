@@ -11,7 +11,11 @@ class Follower(StartsElection):
             convert to candidate
     """
 
-    def request_vote(self, server, term, candidate_id, last_index, last_term):
+    def request_vote(self,
+                     server,
+                     term,
+                     candidate_id,
+                     last_log):
         """
           Receiver implementation:
             1. Reply false if term < currentTerm (§5.1)
@@ -21,22 +25,21 @@ class Follower(StartsElection):
         # remember: current_term = term if term > current_term
         assert term <= server.current_term
         if (term == server.current_term
-            and server.voted_for in (None or candidate_id)
-            and server.log.up_to_date(last_index, last_term)):
+            and server.voted_for in (None, candidate_id)
+            and server.log.last() <= last_log):
             vote_granted = True
         else:
             vote_granted = False
-        return RequestVoteResponse(vote_granted=vote_granted)
-
-    # def vote(self, *args, **kwargs):
-    #     print("folloWER? VOTE?", args, kwargs)
+        response = RequestVoteResponse(term=server.current_term,
+                                       vote_granted=vote_granted,
+                                       sender=server.network.id)
+        return response
 
     def append_entries(self,
                        server,
                        term,
                        leader_id,
-                       prev_log_index,
-                       prev_log_term,
+                       prev_log,
                        entries,
                        leader_commit):
         """
@@ -56,17 +59,17 @@ class Follower(StartsElection):
         if term < server.current_term:
             return False
 
-        log_term = server.log.get_term(prev_log_index)
+        log_term = server.log.get_term(prev_log[1])
         if log_term is None:
             # 2. Reply false if log doesn’t contain an entry at prevLogIndex
             #    whose term matches prevLogTerm (§5.3)
             return False
 
-        if log_term != prev_log_term:
+        if log_term != prev_log[0]:
             # 3. If an existing entry conflicts with a new one (same index
             # but different terms), delete the existing entry and all that
             # follow it (§5.3)
-            server.log.delete_from(prev_log_index)
+            server.log.delete_from(prev_log[1])
             return False
 
         # 4. Append any new entries not already in the log

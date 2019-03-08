@@ -1,42 +1,31 @@
+from collections import Counter
+import pytest
 from emraft.network import Network
 from emraft.server import Server
 from emraft.rpc import (RequestVote,
                         RequestVoteResponse,
                         AppendEntries,
                         AppendEntriesResponse)
+from emraft.persistent_state import SQLitePersistentState
+
+import mem_persistent_state
+
+impl = ['mem', 'sqlite']
 
 
-class MemLog:
-    """ In-memory Raft log (for testing) """
-
-    def __init__(self):
-        self.log = [(0, None)]
-
-    def get_term(self, index):
-        if index < len(self.log):
-            return self.log[index][0]
-
-    def append(self, entries):
-        pass
-
-    def last(self):
-        log_index = len(self.log) - 1
-        return (log_index, self.log[log_index][0])
+@pytest.fixture
+def mem():
+    return mem_persistent_state.MemPersistentState()
 
 
-class MemPersistentState:
-    """ In-memory "persistent" server state (for testing) """
+@pytest.fixture
+def sqlite():
+    return SQLitePersistentState.connect(':memory:')
 
-    def __init__(self, current_term=0, voted_for=None):
-        self._current_term = current_term
-        self.voted_for = voted_for
-        self.log = MemLog()
 
-    def set_current_term(self, term):
-        self._current_term = term
-
-    def get_current_term(self):
-        return self._current_term
+@pytest.fixture
+def persistent_state(request):
+    return request.getfixturevalue(request.param)
 
 
 class StopServer(Exception):
@@ -67,6 +56,7 @@ class SimulatedNetwork(Network):
         self.server.after(0, Server.receive, rpc=resp)
 
     def send(self, rpc, dst=Network.ALL):
+        self.sends.append(rpc)
         # Stop when server first sends "AppendEntries".
         # asendsbecomes leader
         if isinstance(rpc, AppendEntries):
@@ -83,6 +73,9 @@ class GrantVotesNetwork(SimulatedNetwork):
                 self.request_vote(rpc, server, True)
         elif isinstance(rpc, AppendEntries):
             self.server.after(0, stop_server)
+        elif isinstance(rpc, AppendEntriesResponse):
+            pass
+            # self.server.after(0, stop_server)
         else:
             assert False, "unexpected rpc {!r}".format(rpc)
 
@@ -94,6 +87,7 @@ class DontGrantVotesNetwork(SimulatedNetwork):
         pass
 
     def send(self, rpc, dst=Network.ALL):
+        print("send", rpc)
         self.sends.append((rpc, dst))
         if isinstance(rpc, RequestVote):
             for server in self.servers[:-1]:
@@ -109,21 +103,22 @@ class DontGrantVotesNetwork(SimulatedNetwork):
 class ReceiveAppendEntriesNetwork(DontGrantVotesNetwork):
 
     def on_request_vote(self):
-        append_entries = AppendEntries(term=self.server.current_term + 1,
+        append_entries = AppendEntries(term=self.server.current_term,
                                        leader_id=self.servers[-2],
-                                       prev_log_index=0,
-                                       prev_log_term=0,
+                                       prev_log=(0, 0),
                                        entries=[],
                                        leader_commit=0)
         self.server.receive(append_entries)
         self.server.after(0.1, stop_server)
 
 
-def run_server(network, timeout=10.0):
-    persistent_state = MemPersistentState()
+def run_server(persistent_state, network, timeout=10.0, init_server=None):
+    # persistent_state = MemPersistentState()
     network.server = Server(persistent_state, network)
     # add an overall timeout for the run
     network.server.after(timeout, stop_server)
+    if init_server:
+        init_server(network.server)
     try:
         network.server.scheduler.run()
     except StopServer:
@@ -131,31 +126,88 @@ def run_server(network, timeout=10.0):
     return network.server
 
 
-def test_server_becomes_singleton_leader():
+@pytest.mark.parametrize('persistent_state', impl, indirect=True)
+def test_server_becomes_singleton_leader(persistent_state):
     """ Test server becomes leader in singleton network """
-    server = run_server(SimulatedNetwork([7]))
+    server = run_server(persistent_state, SimulatedNetwork([7]))
     assert isinstance(server.state, server.Leader)
 
 
-def test_server_remains_candidate_no_majority():
+@pytest.mark.parametrize('persistent_state', impl, indirect=True)
+def test_follower_grants_vote(persistent_state):
+    def init_server(server):
+        request_vote = RequestVote(
+            term=1,
+            candidate_id=server.network.servers[-2],
+            last_log=(0, 0)
+        )
+        server.receive(request_vote)
+    server = run_server(persistent_state,
+                        SimulatedNetwork([7, 8]),
+                        init_server=init_server,
+                        timeout=0.1)
+    assert len(server.network.sends) == 1
+    assert isinstance(server.network.sends[0], RequestVoteResponse)
+    assert server.network.sends[0].vote_granted
+    assert isinstance(server.state, server.Follower)
+
+
+@pytest.mark.parametrize('persistent_state', impl, indirect=True)
+def test_server_remains_candidate_no_majority(persistent_state):
     """ Test server remains candidate in size 2 network """
-    server = run_server(SimulatedNetwork([1, 2]), timeout=1.0)
+    server = run_server(persistent_state,
+                        SimulatedNetwork([1, 2]),
+                        timeout=1.0)
     assert isinstance(server.state, server.Candidate)
 
 
-def test_server_becomes_leader():
-    server = run_server(GrantVotesNetwork([1, 2, 3]))
+@pytest.mark.parametrize('persistent_state', impl, indirect=True)
+def test_server_becomes_leader(persistent_state):
+    server = run_server(persistent_state, GrantVotesNetwork([1, 2, 3]))
     assert isinstance(server.state, server.Leader)
     assert len(server.network.sends) == 2
 
 
-def test_server_looses_election():
+@pytest.mark.parametrize('persistent_state', impl, indirect=True)
+def test_server_looses_election(persistent_state):
     """ Test server looses election """
-    server = run_server(DontGrantVotesNetwork([1, 2, 3]), timeout=1.0)
+    server = run_server(persistent_state,
+                        DontGrantVotesNetwork([1, 2, 3]),
+                        timeout=1.0)
     assert isinstance(server.state, server.Candidate)
 
 
-def test_server_looses_election_another_wins():
-    """ Test server looses election """
-    server = run_server(ReceiveAppendEntriesNetwork([1, 2, 3]), timeout=1.0)
+@pytest.mark.parametrize('persistent_state', impl, indirect=True)
+def test_candidate_receives_heartbeat(persistent_state):
+    """ Test candidate switches to follower when heartbeat received """
+    server = run_server(persistent_state,
+                        ReceiveAppendEntriesNetwork([1, 2, 3]),
+                        timeout=1.0)
     assert isinstance(server.state, server.Follower)
+
+
+@pytest.mark.parametrize('persistent_state', impl, indirect=True)
+def test_follower_receives_heartbeats(persistent_state):
+    """ Test follower does not change state when receiving hearbeats """
+    def init_server(server):
+        def heartbeat(server):
+            rpc = AppendEntries(
+                term=server.current_term,
+                leader_id=server.network.servers[0],
+                prev_log=(0, 0),
+                entries=[],
+                leader_commit=server.commit_index
+            )
+            server.receive(rpc)
+            delay = server.network.heartbeat_interval()
+            server.after(delay, heartbeat)
+        heartbeat(server)
+
+    server = run_server(persistent_state,
+                        GrantVotesNetwork([1, 2, 3]),
+                        init_server=init_server,
+                        timeout=0.5)
+
+    assert isinstance(server.state, server.Follower)
+    counts = Counter(rpc.__class__ for rpc, dst in server.network.sends)
+    assert counts[AppendEntriesResponse] > 3

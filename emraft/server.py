@@ -29,8 +29,6 @@ class Server:
         self.persistent_state = persistent_state
         self.log = self.persistent_state.log
 
-        self._current_term = None
-
         # volatile state on all servers
         self.commit_index = 0
         self.last_applied = 0
@@ -45,17 +43,28 @@ class Server:
 
     @property
     def current_term(self):
-        if self._current_term is None:
-            self._current_term = self.persistent_state.get_current_term()
-        return self._current_term
+        return self.persistent_state.get_current_term()
 
     @current_term.setter
     def current_term(self, term):
         self.persistent_state.set_current_term(term)
-        self._current_term = None
-        self._voted_for = None
+
+    @property
+    def voted_for(self):
+        return self.persistent_state.get_voted_for()
+
+    @voted_for.setter
+    def voted_for(self, candidate):
+        self.persistent_state.set_voted_for(candidate)
 
     def change_state(self, new_state):
+        """ Change server state.
+
+        This method is used for all state transitions defined
+        in figure 4 in https://raft.github.io/raft.pdf apart
+        from "starts up" including the Candidate -> Candidate
+        transition.
+        """
         self.state = new_state
 
     def receive_action(self, rpc):
@@ -63,6 +72,7 @@ class Server:
             • If RPC request or response contains term T > currentTerm:
                 set currentTerm = T, convert to follower (§5.1)
         """
+        print("Receive action?", rpc, self.state)
         if rpc.term > self.current_term:
             self.current_term = rpc.term
             self.change_state(self.Follower(self))
@@ -77,4 +87,4 @@ class Server:
         self.scheduler.enter(0, PRIORITY, self.receive_action, (rpc,))
 
     def after(self, delay, action, **kwargs):
-        self.scheduler.enter(delay, PRIORITY, action, (self,), kwargs)
+        return self.scheduler.enter(delay, PRIORITY, action, (self,), kwargs)

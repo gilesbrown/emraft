@@ -10,14 +10,14 @@ import sqlite3
 create_log_table = """
 CREATE TABLE IF NOT EXISTS log (
     log_index INTEGER PRIMARY KEY,
-    log_term INTEGER NOT NULL,
-    log_entry VARCHAR
+    term INTEGER NOT NULL,
+    command VARCHAR
 )
 """
 
 insert_log = """
 INSERT OR IGNORE
-    INTO log (log_index, log_term)
+    INTO log (log_index, term)
     VALUES (0, 0)
 """
 
@@ -32,14 +32,29 @@ class SQLiteLog:
         self.con.execute(create_log_table)
         self.con.execute(insert_log)
 
+    def get_term(self, log_index):
+        cur = self.con.execute("""
+            SELECT term
+              FROM log
+              WHERE log_index = :log_index
+        """, dict(log_index=log_index))
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        return None
+
     def last(self):
         sel = """
-            SELECT log_index, log_term
+            SELECT term, log_index
                 FROM log
                 ORDER BY log_index DESC
                 LIMIT 1
         """
-        return self.con.execute(sel).fetchone()
+        row = self.con.execute(sel).fetchone()
+        return row
+
+    def append(self, entries):
+        print("TODO!")
 
 
 create_server_table = """
@@ -71,12 +86,10 @@ select_voted_for = "SELECT voted_for FROM server"
 
 class SQLitePersistentState:
 
-    def __init__(self, connection=None):
-        if connection is None:
-            connection = sqlite3.connect(':memory:')
+    def __init__(self, connection):
         self.con = connection
         self.init()
-        self.log = SQLiteLog(connection)
+        self.log = SQLiteLog(self.con)
 
     def init(self):
         self.con.execute(create_server_table)
@@ -96,13 +109,11 @@ class SQLitePersistentState:
         (current_term,) = self.con.execute(select_current_term).fetchone()
         return current_term
 
-    @property
-    def voted_for(self):
+    def get_voted_for(self):
         (voted_for,) = self.con.execute(select_voted_for).fetchone()
         return voted_for and json.loads(voted_for)
 
-    @voted_for.setter
-    def voted_for(self, candidate):
+    def set_voted_for(self, candidate):
         params = dict(voted_for=json.dumps(candidate))
         rowcount = self.con.execute(update_voted_for, params).rowcount
         assert rowcount > 0

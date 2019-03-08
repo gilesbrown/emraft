@@ -10,12 +10,10 @@ class Leader:
         self.heartbeat(server)
 
     def heartbeat(self, server):
-        last_log_index, last_log_term = server.log.last()
         heartbeat = AppendEntries(
             term=server.current_term,
             leader_id=server.network.id,
-            prev_log_index=last_log_index,
-            prev_log_term=last_log_term,
+            prev_log=server.log.last(),
             entries=[],
             leader_commit=server.commit_index
         )

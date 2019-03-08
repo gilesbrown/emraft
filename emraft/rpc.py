@@ -7,6 +7,16 @@ NetworkId = str
 VoteGranted = bool
 Success = bool
 
+
+def log_key(pair):
+    if len(pair) != 2:
+        raise ValueError()
+    return (Term(pair[0]), LogIndex(pair[1]))
+
+
+LogKey = log_key
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,18 +55,20 @@ class RequestVoteResponse(RPC):
 
 class RequestVote(RPC):
 
-    def __init__(self, term, candidate_id, last_log_index, last_log_term):
+    def __init__(self, term, candidate_id, last_log):
         super(RequestVote, self).__init__(term, candidate_id)
         self.candidate_id = self.sender  # alias
-        self.last_log_index = LogIndex(last_log_index)
-        self.last_log_term = Term(last_log_term)
+        self.last_log = LogKey(last_log)
 
     def __call__(self, server):
         method = self.method(server.state, 'request_vote')
-        vote_granted = method(self.candidate_id,
-                              self.last_log_index,
-                              self.last_log_term)
-        return RequestVoteResponse(self.server.current_term, vote_granted)
+        vote_granted = method(server,
+                              term=self.term,
+                              candidate_id=self.candidate_id,
+                              last_log=self.last_log)
+        return RequestVoteResponse(term=server.current_term,
+                                   vote_granted=vote_granted,
+                                   sender=server.network.id)
 
 
 class AppendEntriesResponse(RPC):
@@ -75,14 +87,12 @@ class AppendEntries(RPC):
     def __init__(self,
                  term,
                  leader_id,
-                 prev_log_index,
-                 prev_log_term,
+                 prev_log,
                  entries,
                  leader_commit):
         super(AppendEntries, self).__init__(term, leader_id)
         self.leader_id = self.sender  # alias
-        self.prev_log_index = LogIndex(prev_log_index)
-        self.prev_log_term = Term(prev_log_term)
+        self.prev_log = LogKey(prev_log)
         self.entries = entries
         self.leader_commit = leader_commit
 
@@ -91,8 +101,7 @@ class AppendEntries(RPC):
         success = append_entries(server,
                                  term=self.term,
                                  leader_id=self.leader_id,
-                                 prev_log_index=self.prev_log_index,
-                                 prev_log_term=self.prev_log_term,
+                                 prev_log=self.prev_log,
                                  entries=self.entries,
                                  leader_commit=self.leader_commit)
         return AppendEntriesResponse(term=server.current_term,
