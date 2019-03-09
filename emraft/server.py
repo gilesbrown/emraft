@@ -72,7 +72,6 @@ class Server:
             • If RPC request or response contains term T > currentTerm:
                 set currentTerm = T, convert to follower (§5.1)
         """
-        print("Receive action?", rpc, self.state)
         if rpc.term > self.current_term:
             self.current_term = rpc.term
             self.change_state(self.Follower(self))

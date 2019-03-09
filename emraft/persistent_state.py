@@ -54,7 +54,8 @@ class SQLiteLog:
         return row
 
     def append(self, entries):
-        print("TODO!")
+        # TODO
+        pass
 
 
 create_server_table = """

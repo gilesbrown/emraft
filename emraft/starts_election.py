@@ -18,7 +18,4 @@ class StartsElection:
 
     def start_election(self, server):
         if server.state is self:
-            print("CHANGE?", self, server.state)
             server.change_state(server.Candidate(server))
-            print("CHANGED", self, server.state)
-

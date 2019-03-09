@@ -87,7 +87,6 @@ class DontGrantVotesNetwork(SimulatedNetwork):
         pass
 
     def send(self, rpc, dst=Network.ALL):
-        print("send", rpc)
         self.sends.append((rpc, dst))
         if isinstance(rpc, RequestVote):
             for server in self.servers[:-1]:
