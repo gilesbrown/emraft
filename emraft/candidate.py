@@ -37,7 +37,6 @@ class Candidate(StartsElection):
         self.votes = set()
         server.current_term += 1
         server.voted_for = server.network.id
-        # TODO: beautify this
         server.receive(self_vote_rpc(server))
         server.network.send(request_vote_rpc(server))
 

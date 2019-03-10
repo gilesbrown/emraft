@@ -1,9 +1,8 @@
 import logging
 
-
 Term = int
 LogIndex = int
-NetworkId = str
+NetworkId = lambda x: x
 VoteGranted = bool
 Success = bool
 
