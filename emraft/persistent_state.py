@@ -92,19 +92,24 @@ class SQLitePersistentState:
         self.init()
         self.log = SQLiteLog(self.con)
 
+    @classmethod
+    def connect(cls, *args, **kwargs):
+        connection = sqlite3.connect(*args, **kwargs)
+        return cls(connection)
+
     def init(self):
         self.con.execute(create_server_table)
         self.con.execute(insert_server)
 
     def set_current_term(self, term):
-        rc = self.con.execute("""
+        rowcount = self.con.execute("""
             UPDATE server
                 SET current_term = :term,
                     voted_for = NULL
                 WHERE current_term < :term
         """, dict(term=term)).rowcount
-        if rc != 1:
-            raise ValueError("update current_term modified {} rows".format(rc))
+        if rowcount != 1:
+            raise ValueError("unable to update current_term")
 
     def get_current_term(self):
         (current_term,) = self.con.execute(select_current_term).fetchone()
@@ -119,7 +124,3 @@ class SQLitePersistentState:
         rowcount = self.con.execute(update_voted_for, params).rowcount
         assert rowcount > 0
 
-    @classmethod
-    def connect(cls, *args, **kwargs):
-        connection = sqlite3.connect(*args, **kwargs)
-        return cls(connection)
