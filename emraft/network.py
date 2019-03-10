@@ -9,9 +9,7 @@ class Network(object):
       * implement `send`
       * implement `__len__`
       * callback to `self.receive`
-      * o
       * manage configuration
-      * 
 
     The recommended timeout from the Raft PDF is:
         broadcastTime ≪ electionTimeout ≪ MTBF
