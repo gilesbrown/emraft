@@ -57,6 +57,10 @@ class SQLiteLog:
         # TODO
         pass
 
+    def delete_from(self, log_index):
+        # TODO
+        pass
+
 
 create_server_table = """
 CREATE TABLE IF NOT EXISTS server (
