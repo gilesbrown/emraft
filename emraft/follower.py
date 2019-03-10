@@ -24,16 +24,16 @@ class Follower(StartsElection):
         """
         # remember: current_term = term if term > current_term
         assert term <= server.current_term
-        if (term == server.current_term
-            and server.voted_for in (None, candidate_id)
-            and server.log.last() <= last_log):
-            vote_granted = True
-        else:
-            vote_granted = False
-        response = RequestVoteResponse(term=server.current_term,
-                                       vote_granted=vote_granted,
-                                       sender=server.network.id)
-        return response
+        if term < server.current_term:
+            return False
+
+        if server.voted_for not in (None, candidate_id):
+            return False
+
+        if server.log.last() > last_log:
+            return False
+
+        return True
 
     def append_entries(self,
                        server,
